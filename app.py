@@ -1,13 +1,15 @@
-
 import streamlit as st
 import pandas as pd
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
 
-def is_night_shift(t):
-    return t >= time(19, 0) or t <= time(6, 49, 59)
+def is_within_range(t, start_t, end_t):
+    if start_t < end_t:
+        return start_t <= t <= end_t
+    else:
+        return t >= start_t or t <= end_t
 
 def assign_shift_number(dt, base_shift_start, starting_shift_number):
-    if dt.time() <= time(6, 49, 59):
+    if dt.time() <= shift_end:
         shift_date = dt.date() - timedelta(days=1)
     else:
         shift_date = dt.date()
@@ -15,10 +17,20 @@ def assign_shift_number(dt, base_shift_start, starting_shift_number):
     return f'SHIFT {shift_number}'
 
 st.title("Alarm Raw Data Cleaner")
-st.write("Upload a CSV file. Rows outside 7:00 PM to 6:49:59 AM are removed. Shift labels are automatically assigned.")
+st.write("Upload a CSV file. Rows outside your defined time range are removed. Shift labels are automatically assigned.")
 
 uploaded_file = st.file_uploader("Upload CSV", type="csv")
 starting_shift = st.number_input("Start from SHIFT number:", min_value=1, value=1)
+
+start_time_str = st.text_input("Enter start time (HH:MM:SS, 24-hour)", value="19:00:00")
+end_time_str = st.text_input("Enter end time (HH:MM:SS, 24-hour)", value="06:49:59")
+
+try:
+    shift_start = datetime.strptime(start_time_str, "%H:%M:%S").time()
+    shift_end = datetime.strptime(end_time_str, "%H:%M:%S").time()
+except ValueError:
+    st.error("Invalid time format. Please use HH:MM:SS format.")
+    shift_start, shift_end = time(19, 0), time(6, 49, 59)
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
@@ -30,14 +42,14 @@ if uploaded_file is not None:
         df = df.dropna(subset=['Date/Time'])
 
         df['TimeOnly'] = df['Date/Time'].dt.time
-        filtered_df = df[df['TimeOnly'].apply(is_night_shift)].drop(columns=['TimeOnly'])
+        filtered_df = df[df['TimeOnly'].apply(lambda t: is_within_range(t, shift_start, shift_end))].drop(columns=['TimeOnly'])
 
         if not filtered_df.empty:
             base_dt = filtered_df['Date/Time'].min()
-            if base_dt.time() <= time(6, 49, 59):
-                base_shift_start = (base_dt - pd.Timedelta(days=1)).replace(hour=19, minute=0, second=0)
+            if base_dt.time() <= shift_end:
+                base_shift_start = (base_dt - pd.Timedelta(days=1)).replace(hour=shift_start.hour, minute=shift_start.minute, second=shift_start.second)
             else:
-                base_shift_start = base_dt.replace(hour=19, minute=0, second=0)
+                base_shift_start = base_dt.replace(hour=shift_start.hour, minute=shift_start.minute, second=shift_start.second)
 
             filtered_df['Shift'] = filtered_df['Date/Time'].apply(
                 lambda dt: assign_shift_number(dt, base_shift_start, starting_shift)
@@ -54,4 +66,4 @@ if uploaded_file is not None:
                 mime='text/csv'
             )
         else:
-            st.warning("No rows matched the night shift window.")
+            st.warning("No rows matched the selected time window.")
