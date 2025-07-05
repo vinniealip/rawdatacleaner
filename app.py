@@ -40,7 +40,11 @@ if uploaded_file is not None:
     else:
         # Attempt to parse both 12-hour and 24-hour datetime formats
         def parse_datetime_flexibly(date_str):
-            for fmt in ["%d/%m/%Y %I:%M:%S %p", "%d/%m/%Y %I:%M %p", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"]:
+            for fmt in [
+                "%d/%m/%Y %I:%M:%S %p", "%d/%m/%Y %I:%M %p",
+                "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M",
+                "%m/%d/%y %H:%M"  # Format in your current file
+            ]:
                 try:
                     return datetime.strptime(date_str, fmt)
                 except ValueError:
