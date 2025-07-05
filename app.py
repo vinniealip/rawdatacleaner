@@ -53,30 +53,36 @@ if uploaded_file is not None:
         # Sort by Date/Time ascending (oldest to newest)
         df = df.sort_values(by='Date/Time')
 
-        filtered_df = df[df['TimeOnly'].apply(lambda t: is_within_range(t, shift_start, shift_end))].copy()
-        if 'TimeOnly' in filtered_df.columns:
-            filtered_df.drop(columns=['TimeOnly'], inplace=True)
+        # Create 'TimeOnly' column only if Date/Time is not empty
+        if not df.empty:
+            df['TimeOnly'] = df['Date/Time'].dt.time
+            filtered_df = df[df['TimeOnly'].apply(lambda t: is_within_range(t, shift_start, shift_end))].copy()
 
-        if not filtered_df.empty:
-            base_dt = filtered_df['Date/Time'].min()
-            if base_dt.time() <= shift_end:
-                base_shift_start = (base_dt - pd.Timedelta(days=1)).replace(hour=shift_start.hour, minute=shift_start.minute, second=shift_start.second)
+            if 'TimeOnly' in filtered_df.columns:
+                filtered_df.drop(columns=['TimeOnly'], inplace=True)
+
+            if not filtered_df.empty:
+                base_dt = filtered_df['Date/Time'].min()
+                if base_dt.time() <= shift_end:
+                    base_shift_start = (base_dt - pd.Timedelta(days=1)).replace(hour=shift_start.hour, minute=shift_start.minute, second=shift_start.second)
+                else:
+                    base_shift_start = base_dt.replace(hour=shift_start.hour, minute=shift_start.minute, second=shift_start.second)
+
+                filtered_df['Shift'] = filtered_df['Date/Time'].apply(
+                    lambda dt: assign_shift_number(dt, base_shift_start, starting_shift)
+                )
+
+                st.success(f"Filtered down to {len(filtered_df)} rows.")
+                st.dataframe(filtered_df)
+
+                csv = filtered_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Cleaned CSV",
+                    data=csv,
+                    file_name='cleaned_nightshift_with_shifts.csv',
+                    mime='text/csv'
+                )
             else:
-                base_shift_start = base_dt.replace(hour=shift_start.hour, minute=shift_start.minute, second=shift_start.second)
-
-            filtered_df['Shift'] = filtered_df['Date/Time'].apply(
-                lambda dt: assign_shift_number(dt, base_shift_start, starting_shift)
-            )
-
-            st.success(f"Filtered down to {len(filtered_df)} rows.")
-            st.dataframe(filtered_df)
-
-            csv = filtered_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Download Cleaned CSV",
-                data=csv,
-                file_name='cleaned_nightshift_with_shifts.csv',
-                mime='text/csv'
-            )
+                st.warning("No rows matched the selected time window.")
         else:
-            st.warning("No rows matched the selected time window.")
+            st.warning("No valid rows after parsing Date/Time.")
