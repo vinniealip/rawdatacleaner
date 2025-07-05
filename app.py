@@ -53,8 +53,9 @@ if uploaded_file is not None:
         # Sort by Date/Time ascending (oldest to newest)
         df = df.sort_values(by='Date/Time')
 
-        df['TimeOnly'] = df['Date/Time'].dt.time
-        filtered_df = df[df['TimeOnly'].apply(lambda t: is_within_range(t, shift_start, shift_end))].drop(columns=['TimeOnly'])
+        filtered_df = df[df['TimeOnly'].apply(lambda t: is_within_range(t, shift_start, shift_end))].copy()
+        if 'TimeOnly' in filtered_df.columns:
+            filtered_df.drop(columns=['TimeOnly'], inplace=True)
 
         if not filtered_df.empty:
             base_dt = filtered_df['Date/Time'].min()
