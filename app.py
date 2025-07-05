@@ -38,8 +38,20 @@ if uploaded_file is not None:
     if 'Date/Time' not in df.columns:
         st.error("The uploaded CSV must contain a 'Date/Time' column.")
     else:
-        df['Date/Time'] = pd.to_datetime(df['Date/Time'], dayfirst=True, errors='coerce')
+        # Attempt to parse both 12-hour and 24-hour datetime formats
+        def parse_datetime_flexibly(date_str):
+            for fmt in ["%d/%m/%Y %I:%M:%S %p", "%d/%m/%Y %I:%M %p", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"]:
+                try:
+                    return datetime.strptime(date_str, fmt)
+                except ValueError:
+                    continue
+            return pd.NaT
+
+        df['Date/Time'] = df['Date/Time'].astype(str).apply(parse_datetime_flexibly)
         df = df.dropna(subset=['Date/Time'])
+
+        # Sort by Date/Time ascending (oldest to newest)
+        df = df.sort_values(by='Date/Time')
 
         df['TimeOnly'] = df['Date/Time'].dt.time
         filtered_df = df[df['TimeOnly'].apply(lambda t: is_within_range(t, shift_start, shift_end))].drop(columns=['TimeOnly'])
